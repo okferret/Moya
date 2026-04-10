@@ -140,7 +140,7 @@ final class MoyaRequestInterceptor: RequestInterceptor {
 }
 
 /// DestinationStream
-public final class DestinationStream {
+public final class DestinationOutputStream {
     internal let url: URL
     internal let stream: Optional<OutputStream>
     

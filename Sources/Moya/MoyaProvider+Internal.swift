@@ -240,7 +240,7 @@ private extension MoyaProvider {
         return sendAlamofireRequest(alamoRequest, target: target, callbackQueue: callbackQueue, progress: progress, completion: completion)
     }
     
-    func sendStreamRequest(_ target: Target, request: URLRequest, callbackQueue: DispatchQueue?, stream: DestinationStream, progress: ProgressBlock? = nil, completion: @escaping Completion) -> CancellableToken {
+    func sendStreamRequest(_ target: Target, request: URLRequest, callbackQueue: DispatchQueue?, stream: DestinationOutputStream, progress: ProgressBlock? = nil, completion: @escaping Completion) -> CancellableToken {
         let interceptor = self.interceptor(target: target)
         var streamRequest: DataStreamRequest = session.requestQueue.sync {
             let streamRequest = session.streamRequest(request, interceptor: interceptor)
@@ -250,7 +250,7 @@ private extension MoyaProvider {
         }
         var totalUnitCount: Int64 = 0
         var completedUnitCount: Int64 = stream.totalBytesCount
-        let destination: DestinationStream = stream
+        let destination: DestinationOutputStream = stream
         let callbackQueue: DispatchQueue = callbackQueue ?? .main
         streamRequest = streamRequest.onHTTPResponse(on: callbackQueue) { resp in
             totalUnitCount = resp.expectedContentLength + stream.totalBytesCount
