@@ -46,4 +46,10 @@ public enum Task {
 
     /// A file download task to a destination with extra parameters using the given encoding.
     case downloadParameters(parameters: [String: Any], encoding: ParameterEncoding, destination: DownloadDestination)
+    
+    /// A file download task to a stream.
+    case stream(_ stream: DestinationStream)
+    
+    /// A file download task to a stream with extra parameters using the given encoding.
+    case streamParameters(_ parameters: [String: Any], _ encoding: ParameterEncoding, _ stream: DestinationStream)
 }

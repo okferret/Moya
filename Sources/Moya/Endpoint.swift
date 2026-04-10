@@ -85,7 +85,7 @@ public extension Endpoint {
         request.allHTTPHeaderFields = httpHeaderFields
 
         switch task {
-        case .requestPlain, .uploadFile, .uploadMultipart, .uploadMultipartFormData, .downloadDestination:
+        case .requestPlain, .uploadFile, .uploadMultipart, .uploadMultipartFormData, .downloadDestination, .stream:
             return request
         case .requestData(let data):
             request.httpBody = data
@@ -99,7 +99,7 @@ public extension Endpoint {
         case let .uploadCompositeMultipart(_, urlParameters), let .uploadCompositeMultipartFormData(_, urlParameters):
             let parameterEncoding = URLEncoding(destination: .queryString)
             return try request.encoded(parameters: urlParameters, parameterEncoding: parameterEncoding)
-        case let .downloadParameters(parameters, parameterEncoding, _):
+        case let .downloadParameters(parameters, parameterEncoding, _), let .streamParameters(parameters, parameterEncoding, _):
             return try request.encoded(parameters: parameters, parameterEncoding: parameterEncoding)
         case let .requestCompositeData(bodyData: bodyData, urlParameters: urlParameters):
             request.httpBody = bodyData

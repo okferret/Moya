@@ -98,6 +98,8 @@ public extension MoyaProvider {
                 return onSendUploadMultipart(MultipartFormData(parts: multipartFormBodyParts))
             case .downloadDestination(let destination), .downloadParameters(_, _, let destination):
                 return self.sendDownloadRequest(target, request: request, callbackQueue: callbackQueue, destination: destination, progress: progress, completion: completion)
+            case .stream(let stream), .streamParameters(_, _, let stream):
+                return sendStreamRequest(target, request: request, callbackQueue: callbackQueue, stream: stream, progress: progress, completion: completion)
             }
         default:
             return self.stubRequest(target, request: request, callbackQueue: callbackQueue, completion: completion, endpoint: endpoint, stubBehavior: stubBehavior)
@@ -209,7 +211,7 @@ private extension MoyaProvider {
         let alamoRequest = validationCodes.isEmpty ? uploadRequest : uploadRequest.validate(statusCode: validationCodes)
         return sendAlamofireRequest(alamoRequest, target: target, callbackQueue: callbackQueue, progress: progress, completion: completion)
     }
-
+    
     func sendDownloadRequest(_ target: Target, request: URLRequest, callbackQueue: DispatchQueue?, destination: @escaping DownloadDestination, progress: ProgressBlock? = nil, completion: @escaping Completion) -> CancellableToken {
         let interceptor = self.interceptor(target: target)
         let downloadRequest: DownloadRequest = session.requestQueue.sync {
@@ -223,7 +225,7 @@ private extension MoyaProvider {
         let alamoRequest = validationCodes.isEmpty ? downloadRequest : downloadRequest.validate(statusCode: validationCodes)
         return sendAlamofireRequest(alamoRequest, target: target, callbackQueue: callbackQueue, progress: progress, completion: completion)
     }
-
+  
     func sendRequest(_ target: Target, request: URLRequest, callbackQueue: DispatchQueue?, progress: Moya.ProgressBlock?, completion: @escaping Moya.Completion) -> CancellableToken {
         let interceptor = self.interceptor(target: target)
         let initialRequest: DataRequest = session.requestQueue.sync {
@@ -235,6 +237,56 @@ private extension MoyaProvider {
 
         let validationCodes = target.validationType.statusCodes
         let alamoRequest = validationCodes.isEmpty ? initialRequest : initialRequest.validate(statusCode: validationCodes)
+        return sendAlamofireRequest(alamoRequest, target: target, callbackQueue: callbackQueue, progress: progress, completion: completion)
+    }
+    
+    func sendStreamRequest(_ target: Target, request: URLRequest, callbackQueue: DispatchQueue?, stream: DestinationStream, progress: ProgressBlock? = nil, completion: @escaping Completion) -> CancellableToken {
+        let interceptor = self.interceptor(target: target)
+        var streamRequest: DataStreamRequest = session.requestQueue.sync {
+            let streamRequest = session.streamRequest(request, interceptor: interceptor)
+            setup(interceptor: interceptor, with: target, and: streamRequest)
+
+            return streamRequest
+        }
+        var totalUnitCount: Int64 = 0
+        var completedUnitCount: Int64 = stream.totalBytesCount
+        let destination: DestinationStream = stream
+        let callbackQueue: DispatchQueue = callbackQueue ?? .main
+        streamRequest = streamRequest.onHTTPResponse(on: callbackQueue) { resp in
+            totalUnitCount = resp.expectedContentLength + stream.totalBytesCount
+        }.responseStream(on: callbackQueue, stream: {[weak streamRequest] stream in
+            guard let streamRequest = streamRequest else { return }
+            // open
+            destination.open()
+            // next
+            switch stream.event {
+            case .stream(let result):
+                let newData: Data = result.get()
+                let maxLength: Int = newData.count
+                let writtenBytes: Int = newData.withUnsafeBytes { buffer in
+                    if let baseAddress = buffer.bindMemory(to: UInt8.self).baseAddress  {
+                        return destination.write(baseAddress, maxLength: maxLength)
+                    } else {
+                        return 0
+                    }
+                }
+                completedUnitCount += Int64(writtenBytes)
+                // 更新进度
+                if let handler = streamRequest.downloadProgressHandler {
+                    streamRequest.downloadProgress.totalUnitCount = totalUnitCount
+                    streamRequest.downloadProgress.completedUnitCount = completedUnitCount
+                    handler.queue.async {
+                        handler.handler(streamRequest.downloadProgress)
+                    }
+                }
+                
+            case .complete(_):
+                destination.close()
+            }
+        })
+
+        let validationCodes = target.validationType.statusCodes
+        let alamoRequest = validationCodes.isEmpty ? streamRequest : streamRequest.validate(statusCode: validationCodes)
         return sendAlamofireRequest(alamoRequest, target: target, callbackQueue: callbackQueue, progress: progress, completion: completion)
     }
 
@@ -270,6 +322,10 @@ private extension MoyaProvider {
                 if let dataRequest = dataRequest.downloadProgress(closure: progressClosure) as? T {
                     progressAlamoRequest = dataRequest
                 }
+            case let streamRequest as DataStreamRequest:
+                if let streamRequest = streamRequest.downloadProgress(closure: progressClosure) as? T {
+                    progressAlamoRequest = streamRequest
+                }
             default: break
             }
         }
@@ -287,6 +343,8 @@ private extension MoyaProvider {
                     progressCompletion(ProgressResponse(progress: uploadRequest.uploadProgress, response: value))
                 case let dataRequest as DataRequest:
                     progressCompletion(ProgressResponse(progress: dataRequest.downloadProgress, response: value))
+                case let streamRequest as DataStreamRequest:
+                    progressCompletion(ProgressResponse(progress: streamRequest.downloadProgress, response: value))
                 default:
                     progressCompletion(ProgressResponse(response: value))
                 }
