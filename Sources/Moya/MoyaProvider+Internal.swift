@@ -245,43 +245,43 @@ private extension MoyaProvider {
         var streamRequest: DataStreamRequest = session.requestQueue.sync {
             let streamRequest = session.streamRequest(request, interceptor: interceptor)
             setup(interceptor: interceptor, with: target, and: streamRequest)
-
             return streamRequest
         }
-        var totalUnitCount: Int64 = 0
-        var completedUnitCount: Int64 = stream.totalBytesCount
-        let destination: DestinationOutputStream = stream
         let callbackQueue: DispatchQueue = callbackQueue ?? .main
-        streamRequest = streamRequest.onHTTPResponse(on: callbackQueue) { resp in
-            totalUnitCount = resp.expectedContentLength + stream.totalBytesCount
-        }.responseStream(on: callbackQueue, stream: {[weak streamRequest] stream in
+        streamRequest = streamRequest.onHTTPResponse(perform: { resp in
+            if stream.expectedContentLengthUsed == true {
+                stream.totalBytesCount = max(0, resp.expectedContentLength) + stream.completedBytesCount
+            }
+        }).responseStream(on: callbackQueue, stream: {[weak streamRequest] result in
             guard let streamRequest = streamRequest else { return }
             // open
-            destination.open()
+            stream.open()
             // next
-            switch stream.event {
+            switch result.event {
             case .stream(let result):
-                let newData: Data = result.get()
-                let maxLength: Int = newData.count
-                let writtenBytes: Int = newData.withUnsafeBytes { buffer in
-                    if let baseAddress = buffer.bindMemory(to: UInt8.self).baseAddress  {
-                        return destination.write(baseAddress, maxLength: maxLength)
-                    } else {
-                        return 0
+                do {
+                    let newData: Data = try result.get()
+                    let maxLength: Int = newData.count
+                    let writtenBytes: Int = newData.withUnsafeBytes { buffer in
+                        if let baseAddress = buffer.bindMemory(to: UInt8.self).baseAddress  {
+                            return stream.write(baseAddress, maxLength: maxLength)
+                        } else {
+                            return 0
+                        }
                     }
-                }
-                completedUnitCount += Int64(writtenBytes)
-                // 更新进度
-                if let handler = streamRequest.downloadProgressHandler {
-                    streamRequest.downloadProgress.totalUnitCount = totalUnitCount
-                    streamRequest.downloadProgress.completedUnitCount = completedUnitCount
-                    handler.queue.async {
-                        handler.handler(streamRequest.downloadProgress)
+                    // 更新进度
+                    if let handler = streamRequest.downloadProgressHandler {
+                        handler.queue.async {
+                            streamRequest.downloadProgress.totalUnitCount = stream.totalBytesCount
+                            streamRequest.downloadProgress.completedUnitCount = stream.completedBytesCount
+                            handler.handler(streamRequest.downloadProgress)
+                        }
                     }
+                } catch {
+                    stream.close()
                 }
-                
             case .complete(_):
-                destination.close()
+                stream.close()
             }
         })
 

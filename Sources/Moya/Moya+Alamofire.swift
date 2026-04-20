@@ -143,28 +143,36 @@ final class MoyaRequestInterceptor: RequestInterceptor {
 public final class DestinationOutputStream {
     internal let url: URL
     internal let stream: Optional<OutputStream>
+    public var expectedContentLengthUsed: Bool = false
+    
+    /// Int64
+    internal var completedBytesCount: Int64 {
+        return safeQueue.sync { _completedBytesCount }
+    }
     
     /// Int64
     internal var totalBytesCount: Int64 {
-        do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-            if let value: Int64 = attributes[.size] as? Int64 {
-                return value
-            } else {
-                return 0
-            }
-        } catch {
-            return 0
-        }
+        get { safeQueue.sync { _totalBytesCount } }
+        set { safeQueue.sync { _totalBytesCount = newValue } }
     }
+    
+    private var _completedBytesCount: Int64 = 0
+    private var _totalBytesCount: Int64 = 0
+    private let safeQueue: DispatchQueue = .init(label: "safeQueue")
     
     /// 初始化
     /// - Parameters:
     ///   - url: URL
     ///   - append: Bool
-    public init(url: URL, append: Bool) {
+    public init(url: URL, append: Bool, totalBytesCount: Int64 = -1) {
         self.url = url
+        self._totalBytesCount = totalBytesCount
         self.stream = .init(url: url, append: append)
+        if let fileBytes: Int64 = try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64 {
+            self._completedBytesCount = fileBytes
+        } else {
+            self._completedBytesCount = 0
+        }
     }
     
     /// write buffer
@@ -173,25 +181,30 @@ public final class DestinationOutputStream {
     ///   - len: Int
     /// - Returns: Int
     internal func write(_ buffer: UnsafePointer<UInt8>, maxLength: Int) -> Int {
-        guard let stream = stream else { return 0 }
-        if stream.streamStatus == .notOpen {
-            stream.open()
+        safeQueue.sync {
+            guard let stream = stream else { return 0 }
+            if stream.streamStatus == .notOpen {
+                stream.open()
+            }
+            let bytesCount = stream.write(buffer, maxLength: maxLength)
+            _completedBytesCount += Int64(bytesCount)
+            return bytesCount
         }
-        return stream.write(buffer, maxLength: maxLength)
-    }
-    
-    /// Bool
-    internal var hasSpaceAvailable: Bool {
-        return stream?.hasSpaceAvailable ?? false
     }
     
     /// open
     internal func open() {
-        stream?.open()
+        safeQueue.sync {
+            guard stream?.streamStatus == .notOpen else { return }
+            stream?.open()
+        }
     }
     
     /// close
     internal func close() {
-        stream?.close()
+        safeQueue.sync {
+            guard stream?.streamStatus == .open else { return }
+            stream?.close()
+        }
     }
 }
