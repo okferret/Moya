@@ -28,7 +28,7 @@ public enum Task {
     case uploadFile(URL)
     
     /// A file upload task combined with url parameters.
-    case uploadCompositeFile(_ fileURL: URL, _ urlParameters: [String: Any])
+    case uploadCompositeFile(_ fileURL: URL, urlParameters: [String: Any])
 
     /// A "multipart/form-data" upload task.
     case uploadMultipartFormData(MultipartFormData)
@@ -54,5 +54,5 @@ public enum Task {
     case stream(_ stream: DestinationOutputStream)
     
     /// A file download task to a stream with extra parameters using the given encoding.
-    case streamParameters(_ parameters: [String: Any], _ encoding: ParameterEncoding, _ stream: DestinationOutputStream)
+    case streamParameters(_ parameters: [String: Any], encoding: ParameterEncoding, stream: DestinationOutputStream)
 }
