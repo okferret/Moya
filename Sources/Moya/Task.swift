@@ -26,6 +26,9 @@ public enum Task {
 
     /// A file upload task.
     case uploadFile(URL)
+    
+    /// A file upload task combined with url parameters.
+    case uploadCompositeFile(_ fileURL: URL, _ urlParameters: [String: Any])
 
     /// A "multipart/form-data" upload task.
     case uploadMultipartFormData(MultipartFormData)

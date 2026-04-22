@@ -88,17 +88,28 @@ public extension MoyaProvider {
         switch stubBehavior {
         case .never:
             switch endpoint.task {
-            case .requestPlain, .requestData, .requestJSONEncodable, .requestCustomJSONEncodable, .requestParameters, .requestCompositeData, .requestCompositeParameters:
+            case .requestPlain:                 fallthrough
+            case .requestData:                  fallthrough
+            case .requestJSONEncodable:         fallthrough
+            case .requestCustomJSONEncodable:   fallthrough
+            case .requestParameters:            fallthrough
+            case .requestCompositeData:         fallthrough
+            case .requestCompositeParameters:
                 return self.sendRequest(target, request: request, callbackQueue: callbackQueue, progress: progress, completion: completion)
-            case .uploadFile(let file):
-                return self.sendUploadFile(target, request: request, callbackQueue: callbackQueue, file: file, progress: progress, completion: completion)
-            case .uploadMultipartFormData(let multipartFormData), .uploadCompositeMultipartFormData(let multipartFormData, _):
+            case .uploadFile(let fileURL): fallthrough
+            case .uploadCompositeFile(let fileURL, _):
+                return self.sendUploadFile(target, request: request, callbackQueue: callbackQueue, file: fileURL, progress: progress, completion: completion)
+            case .uploadMultipartFormData(let multipartFormData): fallthrough
+            case .uploadCompositeMultipartFormData(let multipartFormData, _):
                 return onSendUploadMultipart(multipartFormData)
-            case .uploadMultipart(let multipartFormBodyParts), .uploadCompositeMultipart(let multipartFormBodyParts, _):
+            case .uploadMultipart(let multipartFormBodyParts): fallthrough
+            case .uploadCompositeMultipart(let multipartFormBodyParts, _):
                 return onSendUploadMultipart(MultipartFormData(parts: multipartFormBodyParts))
-            case .downloadDestination(let destination), .downloadParameters(_, _, let destination):
+            case .downloadDestination(let destination): fallthrough
+            case .downloadParameters(_, _, let destination):
                 return self.sendDownloadRequest(target, request: request, callbackQueue: callbackQueue, destination: destination, progress: progress, completion: completion)
-            case .stream(let stream), .streamParameters(_, _, let stream):
+            case .stream(let stream): fallthrough
+            case .streamParameters(_, _, let stream):
                 return sendStreamRequest(target, request: request, callbackQueue: callbackQueue, stream: stream, progress: progress, completion: completion)
             }
         default:

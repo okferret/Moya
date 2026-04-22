@@ -85,27 +85,35 @@ public extension Endpoint {
         request.allHTTPHeaderFields = httpHeaderFields
 
         switch task {
-        case .requestPlain, .uploadFile, .uploadMultipart, .uploadMultipartFormData, .downloadDestination, .stream:
+        case .requestPlain:             fallthrough
+        case .uploadFile:               fallthrough
+        case .uploadMultipart:          fallthrough
+        case .uploadMultipartFormData:  fallthrough
+        case .downloadDestination:      fallthrough
+        case .stream:
             return request
         case .requestData(let data):
             request.httpBody = data
             return request
-        case let .requestJSONEncodable(encodable):
+        case .requestJSONEncodable(let encodable):
             return try request.encoded(encodable: encodable)
-        case let .requestCustomJSONEncodable(encodable, encoder: encoder):
+        case .requestCustomJSONEncodable(let encodable, let encoder):
             return try request.encoded(encodable: encodable, encoder: encoder)
-        case let .requestParameters(parameters, parameterEncoding):
+        case .requestParameters(let parameters, let parameterEncoding):
             return try request.encoded(parameters: parameters, parameterEncoding: parameterEncoding)
-        case let .uploadCompositeMultipart(_, urlParameters), let .uploadCompositeMultipartFormData(_, urlParameters):
+        case .uploadCompositeMultipart(_, let urlParameters): fallthrough
+        case .uploadCompositeMultipartFormData(_, let urlParameters): fallthrough
+        case .uploadCompositeFile(_, let urlParameters):
             let parameterEncoding = URLEncoding(destination: .queryString)
             return try request.encoded(parameters: urlParameters, parameterEncoding: parameterEncoding)
-        case let .downloadParameters(parameters, parameterEncoding, _), let .streamParameters(parameters, parameterEncoding, _):
+        case .downloadParameters(let parameters, let parameterEncoding, _): fallthrough
+        case .streamParameters(let parameters, let parameterEncoding, _):
             return try request.encoded(parameters: parameters, parameterEncoding: parameterEncoding)
-        case let .requestCompositeData(bodyData: bodyData, urlParameters: urlParameters):
+        case .requestCompositeData(let bodyData, let urlParameters):
             request.httpBody = bodyData
             let parameterEncoding = URLEncoding(destination: .queryString)
             return try request.encoded(parameters: urlParameters, parameterEncoding: parameterEncoding)
-        case let .requestCompositeParameters(bodyParameters: bodyParameters, bodyEncoding: bodyParameterEncoding, urlParameters: urlParameters):
+        case .requestCompositeParameters(let bodyParameters, let bodyParameterEncoding, let urlParameters):
             if let bodyParameterEncoding = bodyParameterEncoding as? URLEncoding, bodyParameterEncoding.destination != .httpBody {
                 fatalError("Only URLEncoding that `bodyEncoding` accepts is URLEncoding.httpBody. Others like `default`, `queryString` or `methodDependent` are prohibited - if you want to use them, add your parameters to `urlParameters` instead.")
             }
